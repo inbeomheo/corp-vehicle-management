@@ -1,6 +1,7 @@
   "use client";
 
 import React, { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 import {
   Car,
   MapPin,
@@ -24,6 +25,7 @@ const PROJECTS = [
 
 const DEFAULT_LOCATION = "평택 사무실 앞";
 const HISTORY_STORAGE_KEY = "vehicle-app-history-v1";
+const STATE_STORAGE_KEY = "vehicle-app-state-v1";
 
 const INITIAL_VEHICLES = [
   {
@@ -92,6 +94,29 @@ const INITIAL_VEHICLES = [
 ];
 
 const INITIAL_LOGS = [];
+
+const mapVehicleRow = (row) => ({
+  id: row.id,
+  plate: row.plate,
+  model: row.model,
+  status: row.status,
+  lastDriver: row.last_driver || "",
+  location: row.location,
+  projectId: row.project_id,
+});
+
+const mapLogRow = (row) => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  plate: row.plate,
+  model: row.model,
+  driver: row.driver,
+  purpose: row.purpose,
+  outTime: row.out_time,
+  inTime: row.in_time,
+  status: row.status,
+  projectId: row.project_id,
+});
 
 const cardStyle =
   "bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden transition-all hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)]";
@@ -325,41 +350,66 @@ const VehicleManager = ({
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [deleteLogTargetId, setDeleteLogTargetId] = useState(null);
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!newVehicle.plate || !newVehicle.model || !newVehicle.location) {
       showNotification("모든 정보를 입력해주세요.", "error");
       return;
     }
-    const vehicle = {
-      id: Date.now(),
+
+    const insertPayload = {
       plate: newVehicle.plate,
       model: newVehicle.model,
-      location: newVehicle.location,
       status: "available",
-      lastDriver: "",
-      projectId: currentProjectId,
+      last_driver: "",
+      location: newVehicle.location,
+      project_id: currentProjectId,
     };
+
+    const { data, error } = await supabase
+      .from("vehicles")
+      .insert(insertPayload)
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      showNotification("차량 저장에 실패했습니다.", "error");
+      return;
+    }
+
+    const vehicle = mapVehicleRow(data);
     setVehicles((prev) => [...prev, vehicle]);
     setNewVehicle({ plate: "", model: "", location: DEFAULT_LOCATION });
     setIsAdding(false);
     showNotification("새로운 차량이 등록되었습니다.");
   };
 
-  const confirmDeleteVehicle = () => {
-    if (deleteTargetId) {
-      setVehicles((prev) => prev.filter((v) => v.id !== deleteTargetId));
-      setDeleteTargetId(null);
-      showNotification("차량이 삭제되었습니다.");
+  const confirmDeleteVehicle = async () => {
+    if (!deleteTargetId) return;
+
+    const { error } = await supabase.from("vehicles").delete().eq("id", deleteTargetId);
+    if (error) {
+      showNotification("차량 삭제에 실패했습니다.", "error");
+      return;
     }
+
+    setVehicles((prev) => prev.filter((v) => v.id !== deleteTargetId));
+    setDeleteTargetId(null);
+    showNotification("차량이 삭제되었습니다.");
   };
 
-  const confirmDeleteLog = () => {
-    if (deleteLogTargetId) {
-      setLogs((prev) => prev.filter((l) => l.id !== deleteLogTargetId));
-      setDeleteLogTargetId(null);
-      showNotification("운행 기록이 삭제되었습니다.");
+  const confirmDeleteLog = async () => {
+    if (!deleteLogTargetId) return;
+
+    const { error } = await supabase.from("logs").delete().eq("id", deleteLogTargetId);
+    if (error) {
+      showNotification("운행 기록 삭제에 실패했습니다.", "error");
+      return;
     }
+
+    setLogs((prev) => prev.filter((l) => l.id !== deleteLogTargetId));
+    setDeleteLogTargetId(null);
+    showNotification("운행 기록이 삭제되었습니다.");
   };
 
   return (
@@ -813,6 +863,58 @@ export default function VehicleHome() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const raw = window.localStorage.getItem(STATE_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.vehicles)) {
+        setVehicles(parsed.vehicles);
+      }
+      if (parsed && Array.isArray(parsed.logs)) {
+        setLogs(parsed.logs);
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchFromSupabase = async () => {
+      try {
+        const { data: vehicleRows, error: vehicleError } = await supabase
+          .from("vehicles")
+          .select("*")
+          .order("id", { ascending: true });
+        if (!vehicleError && vehicleRows) {
+          setVehicles(vehicleRows.map(mapVehicleRow));
+        }
+
+        const { data: logRows, error: logError } = await supabase
+          .from("logs")
+          .select("*")
+          .order("id", { ascending: false });
+        if (!logError && logRows) {
+          setLogs(logRows.map(mapLogRow));
+        }
+      } catch (e) {
+        // 네트워크 오류 등은 조용히 무시 (localStorage 데이터로만 동작)
+      }
+    };
+
+    fetchFromSupabase();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const payload = {
+      vehicles,
+      logs,
+    };
+    window.localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(payload));
+  }, [vehicles, logs]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
       const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw);
@@ -825,6 +927,44 @@ export default function VehicleHome() {
     } catch (e) {
       // ignore parse errors
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchHistoryFromSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("history_entries")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (error || !data) return;
+
+        const drivers = [];
+        const purposes = [];
+
+        for (const row of data) {
+          if (row.kind === "driver" && !drivers.includes(row.value)) {
+            drivers.push(row.value);
+          }
+          if (row.kind === "purpose" && !purposes.includes(row.value)) {
+            purposes.push(row.value);
+          }
+          if (drivers.length >= 5 && purposes.length >= 5) break;
+        }
+
+        if (drivers.length > 0) {
+          setDriverHistory(drivers.slice(0, 5));
+        }
+        if (purposes.length > 0) {
+          setPurposeHistory(purposes.slice(0, 5));
+        }
+      } catch (e) {
+        // Supabase 조회 실패 시에는 localStorage 값만 사용
+      }
+    };
+
+    fetchHistoryFromSupabase();
   }, []);
 
   useEffect(() => {
@@ -841,7 +981,7 @@ export default function VehicleHome() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleCheckOut = (e) => {
+  const handleCheckOut = async (e) => {
     e.preventDefault();
     if (!checkoutForm.vehicleId || !checkoutForm.driver || !checkoutForm.purpose) {
       showNotification("운전자와 목적지를 입력해주세요.", "error");
@@ -869,27 +1009,70 @@ export default function VehicleHome() {
       });
     }
 
+    // 히스토리를 Supabase에도 비동기로 저장 (에러는 무시)
+    if (trimmedDriver) {
+      supabase
+        .from("history_entries")
+        .insert({ kind: "driver", value: trimmedDriver })
+        .then(() => {})
+        .catch(() => {});
+    }
+
+    if (trimmedPurpose) {
+      supabase
+        .from("history_entries")
+        .insert({ kind: "purpose", value: trimmedPurpose })
+        .then(() => {})
+        .catch(() => {});
+    }
+
     const now = new Date();
-    const newLog = {
-      id: Date.now(),
-      vehicleId: vehicle.id,
-      plate: vehicle.plate,
-      model: vehicle.model,
-      driver: trimmedDriver,
-      purpose: trimmedPurpose,
-      outTime:
-        now.toLocaleDateString() +
-        " " +
-        now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      inTime: null,
-      status: "ongoing",
-      projectId: currentProjectId,
-    };
+    const outTime =
+      now.toLocaleDateString() +
+      " " +
+      now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    const { data: insertedLog, error: logError } = await supabase
+      .from("logs")
+      .insert({
+        vehicle_id: vehicle.id,
+        plate: vehicle.plate,
+        model: vehicle.model,
+        driver: trimmedDriver,
+        purpose: trimmedPurpose,
+        out_time: outTime,
+        in_time: null,
+        status: "ongoing",
+        project_id: currentProjectId,
+      })
+      .select("*")
+      .single();
+
+    if (logError || !insertedLog) {
+      showNotification("운행 기록 저장에 실패했습니다.", "error");
+      return;
+    }
+
+    const { error: vehicleError } = await supabase
+      .from("vehicles")
+      .update({
+        status: "in-use",
+        last_driver: trimmedDriver,
+        location: "운행 중",
+      })
+      .eq("id", vehicle.id);
+
+    if (vehicleError) {
+      showNotification("차량 상태 업데이트에 실패했습니다.", "error");
+      return;
+    }
+
+    const newLog = mapLogRow(insertedLog);
     setLogs([newLog, ...logs]);
     setVehicles(
       vehicles.map((v) =>
         v.id === vehicle.id
-          ? { ...v, status: "in-use", lastDriver: checkoutForm.driver, location: "운행 중" }
+          ? { ...v, status: "in-use", lastDriver: trimmedDriver, location: "운행 중" }
           : v,
       ),
     );
@@ -898,7 +1081,7 @@ export default function VehicleHome() {
     showNotification(`${vehicle.model} 운행을 시작합니다.`);
   };
 
-  const handleCheckIn = (e) => {
+  const handleCheckIn = async (e) => {
     e.preventDefault();
     if (!checkinForm.vehicleId) {
       showNotification("반납할 차량을 선택해주세요.", "error");
@@ -920,21 +1103,50 @@ export default function VehicleHome() {
     );
     if (currentLog) {
       const now = new Date();
+      const inTime =
+        now.toLocaleDateString() +
+        " " +
+        now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      const { error: logError } = await supabase
+        .from("logs")
+        .update({
+          in_time: inTime,
+          status: "completed",
+        })
+        .eq("id", currentLog.id);
+
+      if (logError) {
+        showNotification("운행 기록 업데이트에 실패했습니다.", "error");
+        return;
+      }
+
       setLogs(
         logs.map((l) =>
           l.id === currentLog.id
             ? {
                 ...l,
-                inTime:
-                  now.toLocaleDateString() +
-                  " " +
-                  now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                inTime,
                 status: "completed",
               }
             : l,
         ),
       );
     }
+
+    const { error: vehicleError } = await supabase
+      .from("vehicles")
+      .update({
+        status: "available",
+        location: checkinForm.location,
+      })
+      .eq("id", vehicle.id);
+
+    if (vehicleError) {
+      showNotification("차량 상태 업데이트에 실패했습니다.", "error");
+      return;
+    }
+
     setVehicles(
       vehicles.map((v) =>
         v.id === vehicle.id ? { ...v, status: "available", location: checkinForm.location } : v,
