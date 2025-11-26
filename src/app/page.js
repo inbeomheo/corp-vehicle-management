@@ -16,7 +16,9 @@ import {
   Trash2,
   X,
   Home,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const PROJECTS = [
   { id: "green", name: "그린동" },
@@ -119,29 +121,67 @@ const mapLogRow = (row) => ({
 });
 
 const cardStyle =
-  "bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden transition-all hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)]";
+  "bg-white rounded-3xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_10px_30px_-4px_rgba(0,0,0,0.1)] hover:-translate-y-1";
 const inputStyle =
-  "w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:bg-white focus:ring-2 focus:ring-slate-800/10 focus:border-slate-800 transition-all text-slate-800 font-medium placeholder:text-slate-400";
+  "w-full p-4 bg-slate-50/50 rounded-2xl border border-slate-200 outline-none focus:bg-white focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all text-slate-800 font-medium placeholder:text-slate-400";
 const labelStyle =
   "block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider ml-1";
 
-const StatusCard = ({ title, count, icon: Icon, color, gradient }) => (
+const StatusCard = ({ title, count, icon: Icon, color, bgClass }) => (
   <div
-    className={`relative overflow-hidden flex flex-col items-center justify-center p-6 rounded-3xl border border-white/20 shadow-lg ${gradient} group transition-transform hover:scale-[1.02]`}
+    className={`relative overflow-hidden p-6 rounded-3xl border border-slate-100 shadow-sm bg-white group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg`}
   >
-    <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/20 rounded-full blur-2xl" />
-
-    <div className="relative z-10 p-3 rounded-2xl bg-white/90 shadow-sm mb-3">
-      <Icon className={`w-6 h-6 ${color}`} />
+    <div className={`absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 ${bgClass} opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500`} />
+    
+    <div className="relative z-10 flex justify-between items-start">
+      <div>
+        <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</span>
+        <span className={`text-4xl font-black ${color} tracking-tighter`}>{count}</span>
+      </div>
+      <div className={`p-3 rounded-2xl ${bgClass} bg-opacity-10`}>
+        <Icon size={24} className={color} />
+      </div>
     </div>
-    <span className="relative z-10 text-sm font-bold text-slate-600/80 mb-1">{title}</span>
-    <span className={`relative z-10 text-4xl font-black ${color} drop-shadow-sm`}>{count}</span>
   </div>
 );
 
 const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
   const availableList = vehicles.filter((v) => v.status === "available");
   const inUseList = vehicles.filter((v) => v.status === "in-use");
+
+  const handleDownloadExcel = () => {
+    const data = logs.map((log) => ({
+      "날짜": log.outTime.split(" ")[0],
+      "차량번호": log.plate,
+      "차종": log.model,
+      "운전자": log.driver,
+      "용무/목적지": log.purpose,
+      "출차시간": log.outTime,
+      "반납시간": log.inTime || "미반납",
+      "상태": log.status === "completed" ? "반납완료" : "운행중",
+      "현장": log.projectId === "green" ? "그린동" : "초순수",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "운행기록");
+    
+    // 컬럼 너비 자동 조절 (대략적인 값)
+    const wscols = [
+      { wch: 12 }, // 날짜
+      { wch: 12 }, // 차량번호
+      { wch: 10 }, // 차종
+      { wch: 10 }, // 운전자
+      { wch: 25 }, // 용무
+      { wch: 20 }, // 출차
+      { wch: 20 }, // 반납
+      { wch: 10 }, // 상태
+      { wch: 10 }, // 현장
+    ];
+    worksheet["!cols"] = wscols;
+
+    XLSX.writeFile(workbook, `운행기록_${new Date().toLocaleDateString()}.xlsx`);
+  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-32">
@@ -151,53 +191,53 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
           count={availableList.length}
           icon={Key}
           color="text-emerald-600"
-          gradient="bg-gradient-to-br from-emerald-50 via-emerald-100/50 to-white"
+          bgClass="bg-emerald-500"
         />
         <StatusCard
           title="운행 중"
           count={inUseList.length}
           icon={Car}
           color="text-blue-600"
-          gradient="bg-gradient-to-br from-blue-50 via-blue-100/50 to-white"
+          bgClass="bg-blue-500"
         />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         <div className={cardStyle}>
-          <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-100 flex justify-between items-center backdrop-blur-sm">
+          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+              <div className="w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-emerald-50" />
               대기 차량
             </h3>
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold">
-              {availableList.length}대 대기중
+            <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full font-bold border border-emerald-100">
+              {availableList.length}대 가능
             </span>
           </div>
           <div className="divide-y divide-slate-50">
             {availableList.length === 0 ? (
-              <div className="p-10 text-center text-slate-400 bg-slate-50/30">
-                <Car className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                <p>모든 차량이 운행 중입니다!</p>
+              <div className="p-10 text-center text-slate-400 bg-slate-50/50">
+                <Car className="w-12 h-12 mx-auto mb-3 opacity-10" />
+                <p className="text-sm font-medium">모든 차량이 운행 중입니다</p>
               </div>
             ) : (
               availableList.map((v) => (
                 <div
                   key={v.id}
-                  className="p-5 hover:bg-emerald-50/30 transition-colors flex justify-between items-center group cursor-pointer"
+                  className="p-5 hover:bg-slate-50 transition-colors flex justify-between items-center group cursor-pointer"
                   onClick={() => onSelectVehicle(v.id)}
                 >
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="font-bold text-lg text-slate-800 tracking-tight">{v.plate}</span>
-                      <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md font-medium">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-bold text-lg text-slate-900 tracking-tight border border-slate-200 bg-slate-50 px-2 py-0.5 rounded">{v.plate}</span>
+                      <span className="text-[11px] px-2 py-1 bg-slate-100 text-slate-600 rounded-full font-bold">
                         {v.model}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                      <MapPin size={14} className="text-emerald-500" /> {v.location}
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 pl-1">
+                      <MapPin size={12} className="text-emerald-500" /> {v.location}
                     </div>
                   </div>
-                  <button className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 shadow-sm hover:bg-emerald-500 hover:text-white hover:shadow-emerald-200">
+                  <button className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all shadow-sm group-hover:shadow-md">
                     <ArrowRight size={18} />
                   </button>
                 </div>
@@ -207,50 +247,53 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
         </div>
 
         <div className={cardStyle}>
-          <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-100 flex justify-between items-center backdrop-blur-sm">
+          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
               </span>
               실시간 운행
             </h3>
-            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
+            <span className="text-[10px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-bold border border-blue-100">
               {inUseList.length}대 운행중
             </span>
           </div>
           <div className="divide-y divide-slate-50">
             {inUseList.length === 0 ? (
-              <div className="p-10 text-center text-slate-400 bg-slate-50/30">
-                <Key className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                <p>현재 운행 중인 차량이 없습니다.</p>
+              <div className="p-10 text-center text-slate-400 bg-slate-50/50">
+                <Key className="w-12 h-12 mx-auto mb-3 opacity-10" />
+                <p className="text-sm font-medium">현재 운행 중인 차량이 없습니다</p>
               </div>
             ) : (
               inUseList.map((v) => (
                 <div
                   key={v.id}
-                  className="p-5 hover:bg-blue-50/30 transition-colors flex justify-between items-center group cursor-pointer relative overflow-hidden"
+                  className="p-5 hover:bg-slate-50 transition-colors flex justify-between items-center group cursor-pointer relative overflow-hidden"
                   onClick={() => onSelectReturn(v.id)}
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="font-bold text-lg text-slate-800 tracking-tight">{v.plate}</span>
-                      <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md font-bold">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-bold text-lg text-slate-900 tracking-tight border border-slate-200 bg-slate-50 px-2 py-0.5 rounded">{v.plate}</span>
+                      <span className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 rounded-full font-bold">
                         운행중
                       </span>
                     </div>
                     <div className="text-sm text-slate-600 mb-1 flex items-center gap-1.5">
-                      <User size={14} className="text-blue-400" />
-                      <span className="font-medium text-slate-900">{v.lastDriver}</span> 님
+                      <User size={14} className="text-blue-500" />
+                      <span className="font-bold text-slate-900">{v.lastDriver}</span>
+                      <span className="text-slate-400 text-xs">님</span>
                     </div>
                     <div className="text-xs text-slate-400 pl-5 flex items-center gap-1">
                       <Clock size={10} />
-                      {logs.find((l) => l.vehicleId === v.id && l.status === "ongoing")?.purpose}
+                      <span className="truncate max-w-[150px]">
+                        {logs.find((l) => l.vehicleId === v.id && l.status === "ongoing")?.purpose}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    반납하기
+                  <div className="text-xs font-bold text-white bg-blue-600 px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all shadow-lg shadow-blue-200 transform translate-x-2 group-hover:translate-x-0">
+                    반납
                   </div>
                 </div>
               ))
@@ -260,69 +303,66 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
       </div>
 
       <div className={cardStyle}>
-        <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-100 flex justify-between items-center backdrop-blur-sm">
+        <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Clock size={14} className="text-slate-500" />
+            <Clock size={16} className="text-slate-400" />
             최근 운행 기록
           </h3>
-          <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-full font-bold">
-            총 {logs.length}건
-          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadExcel}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-full text-xs font-bold transition-colors group/btn"
+              title="엑셀 다운로드"
+            >
+              <Download size={14} className="group-hover/btn:scale-110 transition-transform" />
+              <span className="hidden sm:inline">엑셀 저장</span>
+            </button>
+            <span className="text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1.5 rounded-full font-bold self-center">
+              총 {logs.length}건
+            </span>
+          </div>
         </div>
 
         {logs.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 bg-slate-50/30">
-            <Key className="w-10 h-10 mx-auto mb-2 opacity-20" />
-            <p>아직 등록된 운행 기록이 없습니다.</p>
+          <div className="p-10 text-center text-slate-400 bg-slate-50/50">
+            <Key className="w-12 h-12 mx-auto mb-3 opacity-10" />
+            <p className="text-sm font-medium">아직 등록된 운행 기록이 없습니다</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
             {logs.slice(0, 20).map((log) => (
               <div
                 key={log.id}
-                className="p-4 flex items-start justify-between gap-4 hover:bg-slate-50 transition-colors"
+                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors group"
               >
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-bold text-slate-800 text-sm tracking-tight">{log.plate}</span>
-                    <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md font-medium">
-                      {log.model}
-                    </span>
+                <div className="flex items-start gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${log.status === 'completed' ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-500'}`}>
+                     {log.status === 'completed' ? <CheckCircle size={18} /> : <Car size={18} />}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1">
-                      <User size={12} className="text-slate-400" />
-                      <span className="font-medium text-slate-700">{log.driver}</span>
-                    </span>
-                    <span className="text-slate-300">·</span>
-                    <span className="line-clamp-1">{log.purpose}</span>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-slate-900 text-sm tracking-tight">{log.plate}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">
+                        {log.model}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="font-bold text-slate-700">{log.driver}</span>
+                      <span className="w-0.5 h-2.5 bg-slate-300 rounded-full" />
+                      <span className="text-slate-600">{log.purpose}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-right text-xs md:text-sm text-slate-500 space-y-1.5 min-w-[150px]">
-                  <div className="flex items-center justify-end gap-1">
-                    <Clock size={10} className="text-emerald-400" />
-                    <span className="text-slate-500">출차</span>
-                    <span className="font-medium text-slate-700">{log.outTime}</span>
-                  </div>
-                  <div className="flex items-center justify-end gap-1">
-                    <Clock size={10} className="text-blue-400" />
-                    <span className="text-slate-500">반납</span>
-                    <span className="font-medium text-slate-700">
-                      {log.inTime || "운행중"}
-                    </span>
-                  </div>
-                  <div className="mt-1">
-                    {log.status === "completed" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold">
-                        <CheckCircle size={10} /> 완료
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-bold">
-                        <Clock size={10} /> 진행중
-                      </span>
-                    )}
-                  </div>
+                <div className="pl-14 sm:pl-0 flex flex-row sm:flex-col gap-4 sm:gap-1 text-xs text-slate-500 sm:text-right items-center sm:items-end">
+                   <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-bold text-[10px]">출차</span>
+                      <span className="font-medium">{log.outTime}</span>
+                   </div>
+                   <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${log.inTime ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600'}`}>반납</span>
+                      <span className={`font-medium ${log.inTime ? '' : 'text-blue-600'}`}>{log.inTime || "운행중"}</span>
+                   </div>
                 </div>
               </div>
             ))}
@@ -1161,26 +1201,26 @@ export default function VehicleHome() {
   const projectLogs = logs.filter((l) => l.projectId === currentProjectId);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-slate-900 selection:text-white">
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/60">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-slate-900 selection:text-white pb-32">
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 supports-[backdrop-filter]:bg-white/60">
         <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
           <div
-            className="flex items-center gap-2.5 cursor-pointer group"
+            className="flex items-center gap-3 cursor-pointer group"
             onClick={() => setActiveTab("dashboard")}
           >
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-2 rounded-xl shadow-lg shadow-slate-300 group-hover:shadow-slate-400 transition-all group-hover:scale-105">
+            <div className="bg-slate-900 text-white p-2 rounded-xl shadow-lg shadow-slate-200 group-hover:scale-105 transition-all duration-300">
               <Car size={20} strokeWidth={2.5} />
             </div>
-            <h1 className="text-lg font-extrabold tracking-tight text-slate-800 group-hover:text-black transition-colors">
-              법인차량<span className="text-slate-400 font-medium">관리</span>
+            <h1 className="text-xl font-black tracking-tighter text-slate-900">
+              법인차량<span className="text-slate-300 font-light">관리</span>
             </h1>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab("dashboard")}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
                 activeTab === "dashboard"
-                  ? "bg-slate-100 text-slate-900 shadow-inner"
+                  ? "bg-slate-100 text-slate-900"
                   : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
               }`}
             >
@@ -1188,9 +1228,9 @@ export default function VehicleHome() {
             </button>
             <button
               onClick={() => setActiveTab("manage")}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
                 activeTab === "manage"
-                  ? "bg-slate-100 text-slate-900 shadow-inner"
+                  ? "bg-slate-100 text-slate-900"
                   : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
               }`}
             >
@@ -1277,17 +1317,17 @@ export default function VehicleHome() {
 
       {activeTab !== "manage" && (
         <div className="fixed bottom-8 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none">
-          <div className="bg-white/80 backdrop-blur-xl p-2 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-white/50 flex gap-3 pointer-events-auto transform transition-transform hover:scale-[1.02]">
+          <div className="bg-white/90 backdrop-blur-2xl p-1.5 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-white/50 flex gap-2 pointer-events-auto transform transition-transform hover:scale-[1.02]">
             <button
               onClick={() => setActiveTab("checkout")}
-              className="flex items-center gap-2 bg-slate-900 text-white py-3 px-6 rounded-2xl font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95"
+              className="flex items-center gap-2 bg-slate-900 text-white py-3.5 px-8 rounded-full font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95"
             >
               <Key size={18} />
               <span>운행 시작</span>
             </button>
             <button
               onClick={() => setActiveTab("checkin")}
-              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 py-3 px-6 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-95"
+              className="flex items-center gap-2 bg-white text-slate-700 py-3.5 px-8 rounded-full font-bold hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
             >
               <CheckCircle size={18} className="text-blue-600" />
               <span>반납</span>
