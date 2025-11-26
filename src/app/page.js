@@ -152,6 +152,22 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
   const availableList = vehicles.filter((v) => v.status === "available");
   const inUseList = vehicles.filter((v) => v.status === "in-use");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showAllLogs, setShowAllLogs] = useState(false);
+
+  // 통계 데이터 계산
+  const vehicleStats = vehicles.map(v => {
+    const count = logs.filter(l => l.vehicleId === v.id).length;
+    return { ...v, count };
+  }).sort((a, b) => b.count - a.count);
+
+  const driverStats = Object.entries(
+    logs.reduce((acc, log) => {
+      acc[log.driver] = (acc[log.driver] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5);
 
   const filteredLogs = logs.filter((log) => {
     if (!searchTerm) return true;
@@ -163,6 +179,8 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
       log.model.toLowerCase().includes(term)
     );
   });
+
+  const displayedLogs = showAllLogs ? filteredLogs : filteredLogs.slice(0, 10);
 
   const handleDownloadExcel = () => {
     const data = filteredLogs.map((log) => ({
@@ -215,6 +233,71 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
           color="text-blue-600"
           bgClass="bg-blue-500"
         />
+      </div>
+
+      {/* 통계 섹션 */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className={cardStyle}>
+          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <BarChart3 size={16} className="text-blue-500" />
+              차량별 운행 횟수
+            </h3>
+          </div>
+          <div className="p-6 space-y-4">
+            {vehicleStats.slice(0, 5).map((v, i) => (
+              <div key={v.id} className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-slate-600">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500">{i + 1}</span>
+                    {v.plate} ({v.model})
+                  </span>
+                  <span className="font-bold text-slate-800">{v.count}회</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max((v.count / (vehicleStats[0]?.count || 1)) * 100, 5)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={cardStyle}>
+          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <TrendingUp size={16} className="text-emerald-500" />
+              최다 이용자 Top 5
+            </h3>
+          </div>
+          <div className="p-6">
+            {driverStats.length === 0 ? (
+              <div className="text-center text-slate-400 py-8 text-sm">데이터가 없습니다</div>
+            ) : (
+              <div className="space-y-3">
+                {driverStats.map(([name, count], i) => (
+                  <div key={name} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                        i === 0 ? 'bg-emerald-100 text-emerald-600' : 
+                        i === 1 ? 'bg-blue-100 text-blue-600' : 
+                        'bg-slate-200 text-slate-500'
+                      }`}>
+                        {i + 1}
+                      </div>
+                      <span className="font-bold text-slate-700">{name}</span>
+                    </div>
+                    <span className="text-xs font-bold text-slate-500 bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">
+                      {count}회 운행
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
@@ -371,7 +454,7 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {filteredLogs.slice(0, 20).map((log) => (
+            {displayedLogs.map((log) => (
               <div
                 key={log.id}
                 className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors group"
@@ -407,6 +490,16 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
                 </div>
               </div>
             ))}
+            {filteredLogs.length > 10 && (
+              <div className="p-3 text-center bg-slate-50/50">
+                <button
+                  onClick={() => setShowAllLogs(!showAllLogs)}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors py-2 px-4 rounded-full hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200"
+                >
+                  {showAllLogs ? "접기" : `전체 기록 보기 (${filteredLogs.length - 10}개 더보기)`}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -493,88 +586,8 @@ const VehicleManager = ({
     showNotification("운행 기록이 삭제되었습니다.");
   };
 
-  // 통계 데이터 계산
-  const vehicleStats = vehicles.map(v => {
-    const count = logs.filter(l => l.vehicleId === v.id).length;
-    return { ...v, count };
-  }).sort((a, b) => b.count - a.count);
-
-  const driverStats = Object.entries(
-    logs.reduce((acc, log) => {
-      acc[log.driver] = (acc[log.driver] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
-
   return (
     <div className="space-y-6 animate-fade-in pb-32">
-      {/* 통계 섹션 */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className={cardStyle}>
-          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <BarChart3 size={16} className="text-blue-500" />
-              차량별 운행 횟수
-            </h3>
-          </div>
-          <div className="p-6 space-y-4">
-            {vehicleStats.slice(0, 5).map((v, i) => (
-              <div key={v.id} className="space-y-1">
-                <div className="flex justify-between text-xs font-medium text-slate-600">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500">{i + 1}</span>
-                    {v.plate} ({v.model})
-                  </span>
-                  <span className="font-bold text-slate-800">{v.count}회</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.max((v.count / (vehicleStats[0]?.count || 1)) * 100, 5)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className={cardStyle}>
-          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <TrendingUp size={16} className="text-emerald-500" />
-              최다 이용자 Top 5
-            </h3>
-          </div>
-          <div className="p-6">
-            {driverStats.length === 0 ? (
-              <div className="text-center text-slate-400 py-8 text-sm">데이터가 없습니다</div>
-            ) : (
-              <div className="space-y-3">
-                {driverStats.map(([name, count], i) => (
-                  <div key={name} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                        i === 0 ? 'bg-emerald-100 text-emerald-600' : 
-                        i === 1 ? 'bg-blue-100 text-blue-600' : 
-                        'bg-slate-200 text-slate-500'
-                      }`}>
-                        {i + 1}
-                      </div>
-                      <span className="font-bold text-slate-700">{name}</span>
-                    </div>
-                    <span className="text-xs font-bold text-slate-500 bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">
-                      {count}회 운행
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white rounded-3xl p-8 w-full max-w-xs shadow-2xl border border-white/50 transform transition-all scale-100">
