@@ -17,6 +17,9 @@ import {
   X,
   Home,
   Download,
+  Search,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -148,9 +151,21 @@ const StatusCard = ({ title, count, icon: Icon, color, bgClass }) => (
 const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
   const availableList = vehicles.filter((v) => v.status === "available");
   const inUseList = vehicles.filter((v) => v.status === "in-use");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredLogs = logs.filter((log) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      log.plate.toLowerCase().includes(term) ||
+      log.driver.toLowerCase().includes(term) ||
+      log.purpose.toLowerCase().includes(term) ||
+      log.model.toLowerCase().includes(term)
+    );
+  });
 
   const handleDownloadExcel = () => {
-    const data = logs.map((log) => ({
+    const data = filteredLogs.map((log) => ({
       "날짜": log.outTime.split(" ")[0],
       "차량번호": log.plate,
       "차종": log.model,
@@ -308,7 +323,17 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
             <Clock size={16} className="text-slate-400" />
             최근 운행 기록
           </h3>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <div className="relative hidden md:block">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="차량, 운전자 검색..."
+                className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all w-48"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
             <button
               onClick={handleDownloadExcel}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-full text-xs font-bold transition-colors group/btn"
@@ -318,19 +343,35 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
               <span className="hidden sm:inline">엑셀 저장</span>
             </button>
             <span className="text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1.5 rounded-full font-bold self-center">
-              총 {logs.length}건
+              {filteredLogs.length}건
             </span>
           </div>
         </div>
+        
+        {/* 모바일용 검색창 */}
+        <div className="md:hidden px-6 pb-4 pt-0 border-b border-slate-50">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="기록 검색 (차량, 이름, 용무)"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
 
-        {logs.length === 0 ? (
+        {filteredLogs.length === 0 ? (
           <div className="p-10 text-center text-slate-400 bg-slate-50/50">
-            <Key className="w-12 h-12 mx-auto mb-3 opacity-10" />
-            <p className="text-sm font-medium">아직 등록된 운행 기록이 없습니다</p>
+            <Search className="w-12 h-12 mx-auto mb-3 opacity-10" />
+            <p className="text-sm font-medium">
+              {searchTerm ? "검색 결과가 없습니다" : "아직 등록된 운행 기록이 없습니다"}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {logs.slice(0, 20).map((log) => (
+            {filteredLogs.slice(0, 20).map((log) => (
               <div
                 key={log.id}
                 className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors group"
@@ -452,8 +493,88 @@ const VehicleManager = ({
     showNotification("운행 기록이 삭제되었습니다.");
   };
 
+  // 통계 데이터 계산
+  const vehicleStats = vehicles.map(v => {
+    const count = logs.filter(l => l.vehicleId === v.id).length;
+    return { ...v, count };
+  }).sort((a, b) => b.count - a.count);
+
+  const driverStats = Object.entries(
+    logs.reduce((acc, log) => {
+      acc[log.driver] = (acc[log.driver] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5);
+
   return (
     <div className="space-y-6 animate-fade-in pb-32">
+      {/* 통계 섹션 */}
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className={cardStyle}>
+          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <BarChart3 size={16} className="text-blue-500" />
+              차량별 운행 횟수
+            </h3>
+          </div>
+          <div className="p-6 space-y-4">
+            {vehicleStats.slice(0, 5).map((v, i) => (
+              <div key={v.id} className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-slate-600">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500">{i + 1}</span>
+                    {v.plate} ({v.model})
+                  </span>
+                  <span className="font-bold text-slate-800">{v.count}회</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max((v.count / (vehicleStats[0]?.count || 1)) * 100, 5)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={cardStyle}>
+          <div className="bg-white px-6 py-5 border-b border-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <TrendingUp size={16} className="text-emerald-500" />
+              최다 이용자 Top 5
+            </h3>
+          </div>
+          <div className="p-6">
+            {driverStats.length === 0 ? (
+              <div className="text-center text-slate-400 py-8 text-sm">데이터가 없습니다</div>
+            ) : (
+              <div className="space-y-3">
+                {driverStats.map(([name, count], i) => (
+                  <div key={name} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                        i === 0 ? 'bg-emerald-100 text-emerald-600' : 
+                        i === 1 ? 'bg-blue-100 text-blue-600' : 
+                        'bg-slate-200 text-slate-500'
+                      }`}>
+                        {i + 1}
+                      </div>
+                      <span className="font-bold text-slate-700">{name}</span>
+                    </div>
+                    <span className="text-xs font-bold text-slate-500 bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">
+                      {count}회 운행
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white rounded-3xl p-8 w-full max-w-xs shadow-2xl border border-white/50 transform transition-all scale-100">
@@ -941,6 +1062,50 @@ export default function VehicleHome() {
     };
 
     fetchFromSupabase();
+
+    // 실시간 구독 설정
+    const vehiclesSubscription = supabase
+      .channel('vehicles-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vehicles' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setVehicles((prev) => [...prev, mapVehicleRow(payload.new)]);
+          } else if (payload.eventType === 'UPDATE') {
+            setVehicles((prev) => 
+              prev.map((v) => v.id === payload.new.id ? mapVehicleRow(payload.new) : v)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setVehicles((prev) => prev.filter((v) => v.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    const logsSubscription = supabase
+      .channel('logs-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'logs' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setLogs((prev) => [mapLogRow(payload.new), ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setLogs((prev) =>
+              prev.map((l) => l.id === payload.new.id ? mapLogRow(payload.new) : l)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setLogs((prev) => prev.filter((l) => l.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(vehiclesSubscription);
+      supabase.removeChannel(logsSubscription);
+    };
   }, []);
 
   useEffect(() => {
