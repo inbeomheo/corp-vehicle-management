@@ -124,26 +124,22 @@ const mapLogRow = (row) => ({
 });
 
 const cardStyle =
-  "bg-white rounded-3xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_10px_30px_-4px_rgba(0,0,0,0.1)] hover:-translate-y-1";
+  "modern-card overflow-hidden p-0";
 const inputStyle =
-  "w-full p-4 bg-slate-50/50 rounded-2xl border border-slate-200 outline-none focus:bg-white focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all text-slate-800 font-medium placeholder:text-slate-400";
+  "w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 font-medium placeholder:text-slate-400";
 const labelStyle =
   "block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider ml-1";
 
 const StatusCard = ({ title, count, icon: Icon, color, bgClass }) => (
   <div
-    className={`relative overflow-hidden p-6 rounded-3xl border border-slate-100 shadow-sm bg-white group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg`}
+    className={`modern-card p-6 flex items-center justify-between group hover:-translate-y-1 transition-transform duration-300`}
   >
-    <div className={`absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 ${bgClass} opacity-10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500`} />
-    
-    <div className="relative z-10 flex justify-between items-start">
-      <div>
-        <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</span>
-        <span className={`text-4xl font-black ${color} tracking-tighter`}>{count}</span>
-      </div>
-      <div className={`p-3 rounded-2xl ${bgClass} bg-opacity-10`}>
-        <Icon size={24} className={color} />
-      </div>
+    <div>
+      <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</span>
+      <span className={`text-4xl font-black ${color} tracking-tighter`}>{count}</span>
+    </div>
+    <div className={`w-14 h-14 rounded-2xl ${bgClass} bg-opacity-10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+      <Icon size={28} className={color} />
     </div>
   </div>
 );
@@ -1380,8 +1376,8 @@ export default function VehicleHome() {
   const projectLogs = logs.filter((l) => l.projectId === currentProjectId);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-slate-900 selection:text-white pb-32">
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 supports-[backdrop-filter]:bg-white/60">
+    <div className="min-h-screen bg-gradient-mesh font-sans text-slate-900 selection:bg-blue-500 selection:text-white pb-32">
+      <header className="sticky top-0 z-30 glass-panel border-b-0 rounded-b-3xl mx-2 mt-2">
         <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer group"
@@ -1391,15 +1387,15 @@ export default function VehicleHome() {
               <Car size={20} strokeWidth={2.5} />
             </div>
             <h1 className="text-xl font-black tracking-tighter text-slate-900">
-              법인차량<span className="text-slate-300 font-light">관리</span>
+              법인차량<span className="text-slate-400 font-light">관리</span>
             </h1>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab("dashboard")}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
                 activeTab === "dashboard"
-                  ? "bg-slate-100 text-slate-900"
+                  ? "bg-slate-100 text-slate-900 shadow-inner"
                   : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
               }`}
             >
@@ -1407,9 +1403,9 @@ export default function VehicleHome() {
             </button>
             <button
               onClick={() => setActiveTab("manage")}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
                 activeTab === "manage"
-                  ? "bg-slate-100 text-slate-900"
+                  ? "bg-slate-100 text-slate-900 shadow-inner"
                   : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
               }`}
             >
@@ -1420,7 +1416,7 @@ export default function VehicleHome() {
       </header>
 
       {notification && (
-        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 px-6 py-3.5 rounded-full shadow-2xl shadow-slate-200 z-50 bg-slate-800 text-white flex items-center gap-3 animate-bounce-in">
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 px-6 py-3.5 rounded-full shadow-2xl shadow-slate-200 z-50 bg-slate-800/90 backdrop-blur text-white flex items-center gap-3 animate-fade-in-up">
           {notification.type === "error" ? (
             <AlertCircle size={18} className="text-red-400" />
           ) : (
@@ -1430,18 +1426,18 @@ export default function VehicleHome() {
         </div>
       )}
 
-      <main className="max-w-3xl mx-auto p-5 pt-8">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <span className="text-xs font-bold text-slate-500">프로젝트</span>
-          <div className="flex gap-2">
+      <main className="max-w-3xl mx-auto p-5 pt-8 animate-fade-in-up">
+        <div className="flex items-center justify-between mb-6 px-1">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Project Location</span>
+          <div className="glass-panel p-1 rounded-full flex gap-1">
             {PROJECTS.map((project) => (
               <button
                 key={project.id}
                 onClick={() => setCurrentProjectId(project.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                   currentProjectId === project.id
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
+                    ? "bg-slate-900 text-white shadow-md"
+                    : "text-slate-500 hover:bg-slate-50"
                 }`}
               >
                 {project.name}
@@ -1495,8 +1491,8 @@ export default function VehicleHome() {
       </main>
 
       {activeTab !== "manage" && (
-        <div className="fixed bottom-8 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-2xl p-1.5 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-white/50 flex gap-2 pointer-events-auto transform transition-transform hover:scale-[1.02]">
+        <div className="fixed bottom-8 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none animate-fade-in-up">
+          <div className="glass-panel p-1.5 rounded-full flex gap-2 pointer-events-auto transform transition-transform hover:scale-[1.02]">
             <button
               onClick={() => setActiveTab("checkout")}
               className="flex items-center gap-2 bg-slate-900 text-white py-3.5 px-8 rounded-full font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95"
@@ -1506,7 +1502,7 @@ export default function VehicleHome() {
             </button>
             <button
               onClick={() => setActiveTab("checkin")}
-              className="flex items-center gap-2 bg-white text-slate-700 py-3.5 px-8 rounded-full font-bold hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
+              className="flex items-center gap-2 bg-white text-slate-700 py-3.5 px-8 rounded-full font-bold hover:bg-slate-50 transition-all active:scale-95 border border-slate-100 shadow-sm"
             >
               <CheckCircle size={18} className="text-blue-600" />
               <span>반납</span>
@@ -1522,9 +1518,6 @@ export default function VehicleHome() {
         .animate-fade-in { animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-slide-down { animation: slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
       `}</style>
     </div>
   );
