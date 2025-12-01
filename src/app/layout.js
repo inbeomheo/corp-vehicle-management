@@ -12,19 +12,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "법인차량 관리 시스템",
-  description: "공용 법인차량의 운행·반납 기록을 손쉽게 관리하는 시스템",
-  applicationName: "법인차량관리",
+  title: "HS 차량관리",
+  description: "한성크린텍 법인차량 운행·반납 관리 시스템",
+  applicationName: "HS 차량관리",
   appleWebApp: {
     capable: true,
-    title: "법인차량관리",
-    statusBarStyle: "default",
+    title: "HS 차량관리",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     icon: "/app-icon.svg",
     shortcut: "/app-icon.svg",
     apple: "/app-icon.svg",
   },
+  themeColor: "#0f172a",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({ children }) {
