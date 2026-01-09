@@ -20,6 +20,8 @@ import {
   Search,
   BarChart3,
   TrendingUp,
+  Filter,
+  Calendar,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -108,6 +110,7 @@ const mapVehicleRow = (row) => ({
   lastDriver: row.last_driver || "",
   location: row.location,
   projectId: row.project_id,
+  memo: row.memo || "",
 });
 
 const mapLogRow = (row) => ({
@@ -144,11 +147,21 @@ const StatusCard = ({ title, count, icon: Icon, color, bgClass }) => (
   </div>
 );
 
-const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
+const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn, onUpdateMemo }) => {
   const availableList = vehicles.filter((v) => v.status === "available");
   const inUseList = vehicles.filter((v) => v.status === "in-use");
   const [searchTerm, setSearchTerm] = useState("");
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [filterVehicle, setFilterVehicle] = useState("");
+  const [filterDriver, setFilterDriver] = useState("");
+  const [editingMemoId, setEditingMemoId] = useState(null);
+  const [memoInput, setMemoInput] = useState("");
+
+  // 고유 운전자 목록
+  const uniqueDrivers = [...new Set(logs.map((l) => l.driver))].sort();
 
   // 통계 데이터 계산
   const vehicleStats = vehicles.map(v => {
@@ -166,15 +179,46 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
     .slice(0, 5);
 
   const filteredLogs = logs.filter((log) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      log.plate.toLowerCase().includes(term) ||
-      log.driver.toLowerCase().includes(term) ||
-      log.purpose.toLowerCase().includes(term) ||
-      log.model.toLowerCase().includes(term)
-    );
+    // 검색어 필터
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        log.plate.toLowerCase().includes(term) ||
+        log.driver.toLowerCase().includes(term) ||
+        log.purpose.toLowerCase().includes(term) ||
+        log.model.toLowerCase().includes(term);
+      if (!matchesSearch) return false;
+    }
+
+    // 날짜 필터
+    if (dateFrom || dateTo) {
+      const logDate = log.outTime.split(" ")[0];
+      if (dateFrom && logDate < dateFrom) return false;
+      if (dateTo && logDate > dateTo) return false;
+    }
+
+    // 차량 필터
+    if (filterVehicle && log.vehicleId !== parseInt(filterVehicle, 10)) {
+      return false;
+    }
+
+    // 운전자 필터
+    if (filterDriver && log.driver !== filterDriver) {
+      return false;
+    }
+
+    return true;
   });
+
+  const resetFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setFilterVehicle("");
+    setFilterDriver("");
+    setSearchTerm("");
+  };
+
+  const hasActiveFilters = dateFrom || dateTo || filterVehicle || filterDriver;
 
   const displayedLogs = showAllLogs ? filteredLogs : filteredLogs.slice(0, 10);
 
@@ -253,23 +297,82 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
               availableList.map((v) => (
                 <div
                   key={v.id}
-                  className="p-5 hover:bg-slate-50 transition-colors flex justify-between items-center group cursor-pointer"
-                  onClick={() => onSelectVehicle(v.id)}
+                  className="p-5 hover:bg-slate-50 transition-colors group"
                 >
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-bold text-lg text-slate-900 tracking-tight border border-slate-200 bg-slate-50 px-2 py-0.5 rounded">{v.plate}</span>
-                      <span className="text-[11px] px-2 py-1 bg-slate-100 text-slate-600 rounded-full font-bold">
-                        {v.model}
-                      </span>
+                  <div className="flex justify-between items-center cursor-pointer" onClick={() => onSelectVehicle(v.id)}>
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-bold text-lg text-slate-900 tracking-tight border border-slate-200 bg-slate-50 px-2 py-0.5 rounded">{v.plate}</span>
+                        <span className="text-[11px] px-2 py-1 bg-slate-100 text-slate-600 rounded-full font-bold">
+                          {v.model}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 pl-1">
+                        <MapPin size={12} className="text-emerald-500" /> {v.location}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 pl-1">
-                      <MapPin size={12} className="text-emerald-500" /> {v.location}
-                    </div>
+                    <button className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all shadow-sm group-hover:shadow-md">
+                      <ArrowRight size={18} />
+                    </button>
                   </div>
-                  <button className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:border-emerald-200 transition-all shadow-sm group-hover:shadow-md">
-                    <ArrowRight size={18} />
-                  </button>
+                  {/* 메모 영역 */}
+                  <div className="mt-3 pl-1">
+                    {editingMemoId === v.id ? (
+                      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          className="flex-1 px-3 py-1.5 text-xs bg-amber-50 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300"
+                          placeholder="예: 주유 필요, 세차 필요"
+                          value={memoInput}
+                          onChange={(e) => setMemoInput(e.target.value)}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => {
+                            onUpdateMemo(v.id, memoInput);
+                            setEditingMemoId(null);
+                            setMemoInput("");
+                          }}
+                          className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600"
+                        >
+                          저장
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingMemoId(null);
+                            setMemoInput("");
+                          }}
+                          className="px-2 py-1.5 text-slate-400 hover:text-slate-600"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : v.memo ? (
+                      <div
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingMemoId(v.id);
+                          setMemoInput(v.memo);
+                        }}
+                      >
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">
+                          📝 {v.memo}
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingMemoId(v.id);
+                          setMemoInput("");
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-amber-600 font-medium"
+                      >
+                        + 메모 추가
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             )}
@@ -404,6 +507,20 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
             최근 운행 기록
           </h3>
           <div className="flex gap-2 items-center">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                showFilters || hasActiveFilters
+                  ? "bg-blue-100 text-blue-600"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <Filter size={14} />
+              <span className="hidden sm:inline">필터</span>
+              {hasActiveFilters && (
+                <span className="w-2 h-2 bg-blue-500 rounded-full" />
+              )}
+            </button>
             <div className="relative hidden md:block">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -427,9 +544,74 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn }) => {
             </span>
           </div>
         </div>
-        
+
+        {/* 필터 패널 */}
+        {showFilters && (
+          <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 animate-slide-down">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">시작일</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">종료일</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">차량</label>
+                <select
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={filterVehicle}
+                  onChange={(e) => setFilterVehicle(e.target.value)}
+                >
+                  <option value="">전체</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.plate}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">운전자</label>
+                <select
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={filterDriver}
+                  onChange={(e) => setFilterDriver(e.target.value)}
+                >
+                  <option value="">전체</option>
+                  {uniqueDrivers.map((driver) => (
+                    <option key={driver} value={driver}>
+                      {driver}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="mt-3 text-xs font-bold text-slate-500 hover:text-slate-700 flex items-center gap-1"
+              >
+                <X size={12} />
+                필터 초기화
+              </button>
+            )}
+          </div>
+        )}
+
         {/* 모바일용 검색창 */}
-        <div className="md:hidden px-6 pb-4 pt-0 border-b border-slate-50">
+        <div className="md:hidden px-6 pb-4 pt-4 border-b border-slate-50">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -937,13 +1119,11 @@ const SimpleCheckOut = ({
 );
 
 const SimpleCheckIn = ({ vehicles, checkinForm, setCheckinForm, onSubmit }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   useEffect(() => {
     if (checkinForm.vehicleId) {
-      setCheckinForm({ ...checkinForm, location: DEFAULT_LOCATION });
+      setCheckinForm(prev => ({ ...prev, location: DEFAULT_LOCATION }));
     }
-  }, [checkinForm.vehicleId]);
+  }, [checkinForm.vehicleId, setCheckinForm]);
 
   return (
     <div className={`${cardStyle} p-8 animate-fade-in mb-24`}>
@@ -1010,6 +1190,131 @@ const SimpleCheckIn = ({ vehicles, checkinForm, setCheckinForm, onSubmit }) => {
           </div>
         )}
       </form>
+    </div>
+  );
+};
+
+const Statistics = ({ vehicles, logs }) => {
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  // 선택된 월의 데이터 필터링
+  const monthLogs = logs.filter((log) => {
+    const logDate = log.outTime.split(" ")[0];
+    return logDate.startsWith(selectedMonth);
+  });
+
+  // 월간 통계
+  const totalTrips = monthLogs.length;
+
+  // 차량별 통계
+  const vehicleStats = vehicles.map((v) => {
+    const trips = monthLogs.filter((l) => l.vehicleId === v.id).length;
+    return { ...v, trips };
+  }).sort((a, b) => b.trips - a.trips);
+
+  // 운전자별 통계
+  const driverStats = Object.entries(
+    monthLogs.reduce((acc, log) => {
+      acc[log.driver] = (acc[log.driver] || 0) + 1;
+      return acc;
+    }, {})
+  ).sort(([, a], [, b]) => b - a);
+
+  // 월 옵션 생성 (최근 12개월)
+  const monthOptions = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+    monthOptions.push({ value, label });
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in pb-32">
+      {/* 월 선택 */}
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-2xl font-black text-slate-800">통계</h2>
+        <select
+          className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-200"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+        >
+          {monthOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 월간 요약 */}
+      <div className={`${cardStyle} p-5`}>
+        <div className="text-xs font-bold text-slate-400 uppercase mb-1">운행 횟수</div>
+        <div className="text-3xl font-black text-slate-900">{totalTrips}<span className="text-lg text-slate-400 font-medium">회</span></div>
+      </div>
+
+      {/* 차량별 통계 */}
+      <div className={cardStyle}>
+        <div className="bg-white px-6 py-5 border-b border-slate-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Car size={16} className="text-blue-500" />
+            차량별 통계
+          </h3>
+        </div>
+        {vehicleStats.length === 0 ? (
+          <div className="p-10 text-center text-slate-400">데이터가 없습니다</div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {vehicleStats.map((v) => (
+              <div key={v.id} className="px-6 py-4 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-slate-800">{v.plate}</div>
+                  <div className="text-xs text-slate-400">{v.model}</div>
+                </div>
+                <div className="text-sm text-right">
+                  <div className="font-bold text-slate-700">{v.trips}회</div>
+                  <div className="text-[10px] text-slate-400">운행</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 운전자별 통계 */}
+      <div className={cardStyle}>
+        <div className="bg-white px-6 py-5 border-b border-slate-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <User size={16} className="text-emerald-500" />
+            운전자별 통계
+          </h3>
+        </div>
+        {driverStats.length === 0 ? (
+          <div className="p-10 text-center text-slate-400">데이터가 없습니다</div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {driverStats.map(([driver, count], i) => (
+              <div key={driver} className="px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                    i === 0 ? "bg-emerald-100 text-emerald-600" :
+                    i === 1 ? "bg-blue-100 text-blue-600" :
+                    "bg-slate-100 text-slate-500"
+                  }`}>
+                    {i + 1}
+                  </div>
+                  <span className="font-bold text-slate-700">{driver}</span>
+                </div>
+                <span className="text-sm font-bold text-slate-500">{count}회 운행</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1372,6 +1677,27 @@ export default function VehicleHome() {
     showNotification("운행이 종료되었습니다.");
   };
 
+  const handleUpdateMemo = async (vehicleId, memo) => {
+    const trimmedMemo = memo.trim();
+
+    const { error } = await supabase
+      .from("vehicles")
+      .update({ memo: trimmedMemo || null })
+      .eq("id", vehicleId);
+
+    if (error) {
+      showNotification("메모 저장에 실패했습니다.", "error");
+      return;
+    }
+
+    setVehicles(
+      vehicles.map((v) =>
+        v.id === vehicleId ? { ...v, memo: trimmedMemo } : v
+      )
+    );
+    showNotification(trimmedMemo ? "메모가 저장되었습니다." : "메모가 삭제되었습니다.");
+  };
+
   const projectVehicles = vehicles.filter((v) => v.projectId === currentProjectId);
   const projectLogs = logs.filter((l) => l.projectId === currentProjectId);
 
@@ -1400,6 +1726,16 @@ export default function VehicleHome() {
               }`}
             >
               <Home size={20} strokeWidth={2.5} />
+            </button>
+            <button
+              onClick={() => setActiveTab("stats")}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                activeTab === "stats"
+                  ? "bg-blue-100 text-blue-600 shadow-inner"
+                  : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+              }`}
+            >
+              <BarChart3 size={20} strokeWidth={2.5} />
             </button>
             <button
               onClick={() => setActiveTab("manage")}
@@ -1458,6 +1794,7 @@ export default function VehicleHome() {
               setCheckinForm({ ...checkinForm, vehicleId: id });
               setActiveTab("checkin");
             }}
+            onUpdateMemo={handleUpdateMemo}
           />
         )}
         {activeTab === "checkout" && (
@@ -1476,6 +1813,12 @@ export default function VehicleHome() {
             checkinForm={checkinForm}
             setCheckinForm={setCheckinForm}
             onSubmit={handleCheckIn}
+          />
+        )}
+        {activeTab === "stats" && (
+          <Statistics
+            vehicles={projectVehicles}
+            logs={projectLogs}
           />
         )}
         {activeTab === "manage" && (
