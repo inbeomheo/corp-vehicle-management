@@ -22,6 +22,8 @@ import {
   TrendingUp,
   Filter,
   Calendar,
+  ParkingCircle,
+  ExternalLink,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -146,6 +148,8 @@ const StatusCard = ({ title, count, icon: Icon, color, bgClass }) => (
     </div>
   </div>
 );
+
+const NICEPARK_URL = "https://npdc-i.nicepark.co.kr/";
 
 const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn, onUpdateMemo }) => {
   const availableList = vehicles.filter((v) => v.status === "available");
@@ -274,6 +278,26 @@ const Dashboard = ({ vehicles, logs, onSelectVehicle, onSelectReturn, onUpdateMe
           bgClass="bg-blue-500"
         />
       </div>
+
+      {/* 주차 할인 버튼 - 새 탭으로 열기 */}
+      <button
+        onClick={() => window.open(NICEPARK_URL, '_blank')}
+        className="w-full modern-card p-4 flex items-center justify-between group hover:-translate-y-0.5 transition-all duration-300 border-2 border-transparent hover:border-blue-200"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 group-hover:scale-105 transition-transform">
+            <ParkingCircle size={24} />
+          </div>
+          <div className="text-left">
+            <h3 className="font-bold text-slate-800 text-base">주차 할인 등록</h3>
+            <p className="text-xs text-slate-500">나이스파크 웹할인 시스템</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-blue-500 group-hover:translate-x-1 transition-transform">
+          <ExternalLink size={16} />
+          <span className="text-xs font-bold">새 탭에서 열기</span>
+        </div>
+      </button>
 
       {/* 차량 리스트 섹션 (예약 편의를 위해 상단 배치) */}
       <div className="grid md:grid-cols-2 gap-6">
